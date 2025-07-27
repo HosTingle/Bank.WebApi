@@ -1,0 +1,15 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Banka.Cekirdek\Banka.Cekirdek.csproj" />
+    <ProjectReference Include="..\Banka.Varlıklar\Banka.Varlıklar.csproj" />
+    <ProjectReference Include="..\Banka.VeriErisimi\Banka.VeriErisimi.csproj" />
+  </ItemGroup>
+
+</Project>
