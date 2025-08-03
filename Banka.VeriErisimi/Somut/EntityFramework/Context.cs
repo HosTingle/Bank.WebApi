@@ -19,8 +19,7 @@ namespace Banka.VeriErisim.Somut.EntityFramework
         {
             if (!optionsBuilder.IsConfigured)
             {
-                optionsBuilder.UseSqlServer(
-          @"Server=46.101.136.41,1433;Database=BankaDb;User Id=sa;Password=GokDeniz123!;TrustServerCertificate=True;");
+                optionsBuilder.UseSqlServer(@"Server=DESKTOP-DNUIALQ\SQLKOD;Database=BankaDb;integrated Security=true;TrustServerCertificate=True;");
 
             }
         }

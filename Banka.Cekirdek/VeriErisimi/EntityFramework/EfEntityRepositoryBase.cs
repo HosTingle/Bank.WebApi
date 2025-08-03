@@ -1,5 +1,6 @@
 ﻿using Banka.Cekirdek.Varlıklar;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -36,11 +37,21 @@ namespace Banka.Cekirdek.VeriErisimi.EntityFramework
         {
             using (var context = new TContext())
             {
+
                 context.Entry(entity).State = EntityState.Modified;
                 await context.SaveChangesAsync();
             }
         }
+        public async Task GuncelleTransaction(TEntity entity) 
+        {
+            using (var context = new TContext())
+            {
+                IDbContextTransaction transaction=context.Database.BeginTransaction();
 
+                context.Entry(entity).State = EntityState.Modified;
+                await context.SaveChangesAsync();
+            }
+        }
         public async Task<TEntity> Getir(Expression<Func<TEntity, bool>> filter = null)
         {
             using (var context = new TContext())

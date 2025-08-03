@@ -1,8 +1,11 @@
-﻿using Banka.Cekirdek.YardımcıHizmetler.Results;
+﻿using Banka.Cekirdek.VeriErisimi.EntityFramework;
+using Banka.Cekirdek.YardımcıHizmetler.Results;
+using Banka.Cekirdek.YardımcıHizmetler.Transaction;
 using Banka.İs.Sabitler;
 using Banka.İs.Soyut;
 using Banka.Varlıklar.DTOs;
 using Banka.Varlıklar.Somut;
+using Banka.VeriErisim.Somut.EntityFramework;
 using Banka.VeriErisimi.Somut.EntityFramework;
 using Banka.VeriErisimi.Soyut;
 using Microsoft.Extensions.Caching.Memory;
@@ -78,21 +81,25 @@ namespace Banka.İs.Somut
             if (miktar <= 0)
                 return new ErrorDataResult<decimal>("Transfer miktarı sıfırdan büyük olmalıdır.");
 
+            await using var unitOfWork = new EfUnitOfWork<BankaContext>();
+            await unitOfWork.BeginTransactionAsync();
+
             try
             {
-                var aliciResult = await HesapNoIdIleGetir(aliciHesapId);
-                if (!aliciResult.Success || aliciResult.Data == null)
-                    return new ErrorDataResult<decimal>("Alıcı hesap bulunamadı.");
-
-                // Gönderen hesap mı kart mı belirle
+                var hesapRepository = new EfEntityRepositoryTransactionBase<Hesap>(unitOfWork.Context);
+                var kartRepository = new EfEntityRepositoryTransactionBase<Kart>(unitOfWork.Context);
                 var gonderenHesapResult = await HesapNoIdIleGetir(gonderenId);
-                bool gonderenHesapVar = gonderenHesapResult.Success && gonderenHesapResult.Data != null;
-
-                if (gonderenHesapVar)
+                var aliciResult = await HesapNoIdIleGetir(aliciHesapId);
+                var alici =aliciResult.Data;
+                if (alici == null)
                 {
-                    var gonderen = gonderenHesapResult.Data;
-                    var alici = aliciResult.Data;
-
+                    await unitOfWork.RollbackAsync();
+                    return new ErrorDataResult<decimal>("Alıcı hesap bulunamadı.");
+                }
+                var gondere = await HesapNoIdIleGetir(gonderenId);
+                var gonderen = gondere.Data;
+                if (gonderen != null)
+                {
                     if (gonderen.Id == alici.Id)
                         return new ErrorDataResult<decimal>("Kendinize para transferi yapamazsınız.");
 
@@ -105,35 +112,35 @@ namespace Banka.İs.Somut
                     gonderen.Bakiye -= miktar;
                     alici.Bakiye += miktar;
 
-                    await _hesapDal.Guncelle(gonderen);
-                    await _hesapDal.Guncelle(alici);
+                    await hesapRepository.Guncelle(gonderen);
+                    await hesapRepository.Guncelle(alici);
 
-                    return new SuccessDataResult<decimal>(gonderen.Bakiye, "Hesaptan hesaba transfer başarılı.");
+                    await unitOfWork.CommitAsync();
+                    return new SuccessDataResult<decimal>(gonderen.Bakiye, "Transfer başarılı.");
                 }
-                else
+
+                var gonderenKart = await kartRepository.Getir(k => k.KartNumarasi == gonderenId);
+                if (gonderenKart == null)
                 {
-                    // Gönderen kart mı diye kontrol et
-                    var gonderenKartResult = await _kartServis.KartNoIleGetir(gonderenId);
-                    if (!gonderenKartResult.Success || gonderenKartResult.Data == null)
-                        return new ErrorDataResult<decimal>("Gönderen hesap veya kart bulunamadı.");
-
-                    var gonderenKart = gonderenKartResult.Data;
-                    var alici = aliciResult.Data;
-
-                    if (gonderenKart.Limit < miktar)
-                        return new ErrorDataResult<decimal>("Kartta yeterli bakiye yok.");
-
-                    gonderenKart.Limit -= miktar;
-                    alici.Bakiye += miktar;
-
-                    await _kartServis.Guncelle(gonderenKart);
-                    await _hesapDal.Guncelle(alici);
-
-                    return new SuccessDataResult<decimal>(gonderenKart.Limit!.Value, "Karttan hesaba transfer başarılı.");
+                    await unitOfWork.RollbackAsync();
+                    return new ErrorDataResult<decimal>("Gönderen hesap veya kart bulunamadı.");
                 }
+
+                if (gonderenKart.Limit < miktar)
+                    return new ErrorDataResult<decimal>("Kartta yeterli limit yok.");
+
+                gonderenKart.Limit -= miktar;
+                alici.Bakiye += miktar;
+
+                await kartRepository.Guncelle(gonderenKart);
+                await hesapRepository.Guncelle(alici);
+
+                await unitOfWork.CommitAsync();
+                return new SuccessDataResult<decimal>(gonderenKart.Limit.Value, "Karttan hesaba transfer başarılı.");
             }
             catch (Exception ex)
             {
+                await unitOfWork.RollbackAsync();
                 return new ErrorDataResult<decimal>($"Transfer sırasında bir hata oluştu: {ex.Message}");
             }
         }
