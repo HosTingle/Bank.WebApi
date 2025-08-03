@@ -106,14 +106,16 @@ namespace Banka.İs.Somut
                     if (gonderen.ParaBirimi != alici.ParaBirimi)
                         return new ErrorDataResult<decimal>("Hesaplar farklı para birimi kullanıyor.");
 
-                    if (gonderen.Bakiye < miktar)
-                        return new ErrorDataResult<decimal>("Gönderen hesapta yeterli bakiye yok.");
+
 
                     gonderen.Bakiye -= miktar;
                     alici.Bakiye += miktar;
-
-                    await hesapRepository.Guncelle(gonderen);
                     await hesapRepository.Guncelle(alici);
+     
+                    await hesapRepository.Guncelle(gonderen);
+
+                    if (gonderen.Bakiye<0 || alici.Bakiye<0)
+                        return new ErrorDataResult<decimal>("Gönderen hesapta yeterli bakiye yok.");
 
                     await unitOfWork.CommitAsync();
                     return new SuccessDataResult<decimal>(gonderen.Bakiye, "Transfer başarılı.");
